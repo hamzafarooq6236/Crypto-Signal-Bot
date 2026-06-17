@@ -45,7 +45,7 @@
     },
     {
       "parameters": {
-        "chatId": "7049194477",
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
         "text": "=📊 *Crypto Signal Alert*  \n\n🔹*Symbol:* {{$json.symbol}} \n📈 *RSI (14):* {{Number($json.rsi).toFixed(2)}} \n⏱ *15m Change:* {{Number($json.change15m).toFixed(2)}} %",
         "additionalFields": {}
       },
