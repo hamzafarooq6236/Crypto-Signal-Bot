@@ -1,0 +1,286 @@
+{
+  "name": "My workflow 3",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://api.binance.com/api/v3/ticker/24hr",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        224,
+        -192
+      ],
+      "id": "c8ec3a6e-5ce2-417f-b7b0-422b550a1eb4",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const MIN_VOLUME = 50_000_000; // $50M\nconst result = [];\n\nfor (const item of items) {\n  const c = item.json;\n  const volume = parseFloat(c.quoteVolume);\n\n  if (\n    c.symbol.endsWith(\"USDT\") &&\n    volume >= MIN_VOLUME &&\n    !c.symbol.includes(\"UP\") &&\n    !c.symbol.includes(\"DOWN\")\n  ) {\n    result.push({\n      json: {\n        symbol: c.symbol,\n        volume: volume\n      }\n    });\n  }\n}\n\nreturn result;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -192
+      ],
+      "id": "86d9c41e-8c6e-485a-80ae-fb3a031097ae",
+      "name": "filter usdt pairs"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        672,
+        -192
+      ],
+      "id": "1fbf361f-3f17-4752-a18c-33de1a16a527",
+      "name": "Loop Over Items",
+      "retryOnFail": false,
+      "maxTries": null
+    },
+    {
+      "parameters": {
+        "chatId": "7049194477",
+        "text": "=📊 *Crypto Signal Alert*  \n\n🔹*Symbol:* {{$json.symbol}} \n📈 *RSI (14):* {{Number($json.rsi).toFixed(2)}} \n⏱ *15m Change:* {{Number($json.change15m).toFixed(2)}} %",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        -432
+      ],
+      "id": "75f29e4d-c1dd-41e3-a9a4-21d8dd447fea",
+      "name": "Send a text message",
+      "webhookId": "f281e10f-2c02-4bd1-aff7-a52871cc33e6",
+      "credentials": {
+        "telegramApi": {
+          "id": "DTaVAb90g98Rokfw",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -192
+      ],
+      "id": "204b2853-8059-411f-ab45-74e41f494db1",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cc96baa8-376a-4bb3-a3f4-7dcd23f1b66a",
+              "leftValue": "={{ $json.rsi }}",
+              "rightValue": 50,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        -384
+      ],
+      "id": "a923f1a9-b331-426c-a8a4-591d3e024818",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "function RSI(period, closes) {\n  if (closes.length <= period) return null;\n\n  let gains = 0;\n  let losses = 0;\n\n  // Initial average gain/loss\n  for (let i = 1; i <= period; i++) {\n    const diff = closes[i] - closes[i - 1];\n    if (diff >= 0) gains += diff;\n    else losses -= diff;\n  }\n\n  gains /= period;\n  losses /= period;\n\n  // Wilder smoothing\n  for (let i = period + 1; i < closes.length; i++) {\n    const diff = closes[i] - closes[i - 1];\n    if (diff >= 0) {\n      gains = (gains * (period - 1) + diff) / period;\n      losses = (losses * (period - 1)) / period;\n    } else {\n      gains = (gains * (period - 1)) / period;\n      losses = (losses * (period - 1) - diff) / period;\n    }\n  }\n\n  const rs = losses === 0 ? 100 : gains / losses;\n  return 100 - (100 / (1 + rs));\n}\n\n// ===== MAIN LOOP =====\nconst results = [];\n\nfor (const item of items) {\n  const { symbol, candles } = item.json;\n\n  if (!candles || candles.length < 15) continue;\n\n  const closes = candles.map(c => parseFloat(c[4]));\n\n  const lastClose = closes[closes.length - 1];\n  const prevClose = closes[closes.length - 2];\n  const change15m = ((lastClose - prevClose) / prevClose) * 100;\n\n  const rsi = RSI(14, closes);\n\n  results.push({\n    json: {\n      symbol,\n      rsi,\n      change15m\n    }\n  });\n}\n\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        -384
+      ],
+      "id": "e12a3fe6-d8bb-405b-9974-adebeaa5390f",
+      "name": "Code in JavaScript",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "https://api.binance.com/api/v3/klines",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $json.symbol }}"
+            },
+            {
+              "name": "interval",
+              "value": "15m"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        896,
+        -192
+      ],
+      "id": "6e267c2a-f58e-4a25-99e1-3d7af8ac2900",
+      "name": "HTTP Request1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const symbol = $node[\"Loop Over Items\"].json.symbol;\n\n// Collect ALL candles\nconst candles = items.map(item => item.json);\n\nreturn [\n  {\n    json: {\n      symbol,\n      candles\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        -192
+      ],
+      "id": "8087859a-9535-4e9e-ae29-7eae1634f327",
+      "name": "Code in JavaScript1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "filter usdt pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "filter usdt pairs": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": -1,
+    "availableInMCP": false
+  },
+  "versionId": "71e00430-ad45-425a-9694-25366e65cacf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "beab0bf46c7830c68841884650b0cd6fa2730f5cf8481fc70ed1af54b84557fe"
+  },
+  "id": "iQJIfAII5gyPKiQv",
+  "tags": []
+}
